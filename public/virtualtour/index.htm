@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Virtual Tour</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=0.5, width=device-width, viewport-fit=cover" />
+    <link rel="preload" href="script.js?v=1783921912156" as="script"/>
+<link rel="preload" href="media/panorama_165A9E70_1A4F_5035_41B9_EF229C8AB175_0/l/3/0_0.jpg?v=1783921912156" as="image"/>
+<link rel="preload" href="media/panorama_165A9E70_1A4F_5035_41B9_EF229C8AB175_0/r/3/0_0.jpg?v=1783921912156" as="image"/>
+<link rel="preload" href="media/panorama_165A9E70_1A4F_5035_41B9_EF229C8AB175_0/f/3/0_0.jpg?v=1783921912156" as="image"/>
+<link rel="preload" href="media/panorama_165A9E70_1A4F_5035_41B9_EF229C8AB175_0/b/3/0_0.jpg?v=1783921912156" as="image"/>
+<meta property="og:title" content="Virtual Tour" /><meta property="og:type" content="website" /><meta property="og:description" content="Virtual Tour" /><meta property="og:url" content="https://ce.ubt.ac.id/virtualtour/index.htm" /><meta property="og:image" content="https://ce.ubt.ac.id/virtualtour/socialThumbnail.jpg" /><meta property="og:image:width" content="1200" /> <meta property="og:image:height" content="630" /><meta property="fb:app_id" content="817622095004141" /><link rel="image_src" href="https://ce.ubt.ac.id/virtualtour/socialThumbnail.jpg">
+<meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Virtual Tour"/><meta name="twitter:description" content="Virtual Tour"/><meta name="twitter:url" content="https://ce.ubt.ac.id/virtualtour/index.htm"/><meta name="twitter:image:src" content="https://ce.ubt.ac.id/virtualtour/socialThumbnail.jpg"/><meta name="twitter:image:width" content="1200"/><meta name="twitter:image:height" content="630"/>
+<script>(function(i,s,o,g,r,a,m){i["GoogleAnalyticsObject"]=r;i[r]=i[r]||function(){(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)})(window,document,"script","//www.google-analytics.com/analytics.js","ga");ga("create", "UA-116087-3", "auto"); ga("send", "pageview");</script>
+<meta name="description" content="Virtual Tour"/>
+<meta name="theme-color" content="#FFFFFF"/>
+    <script src="lib/tdvplayer.js?v=1783921912156"></script>
+    <script>
+        var player;
+        var playersPlayingTmp = [];
+        var isInitialized = false;
+        var isPaused = false;
+
+        function loadTour() {
+            if(player) return;
+
+            var beginFunc = function(event){
+                if(event.name == 'begin') {
+                    var camera = event.data.source.get('camera');
+                    if(camera && camera.get('initialSequence') && camera.get('initialSequence').get('movements').length > 0) return;
+                }
+                if(event.sourceClassName == "MediaAudio") return;
+                isInitialized = true;
+                player.unbind('preloadMediaShow', beginFunc, player, true);
+                player.unbindOnObjectsOf('PanoramaPlayListItem', 'begin', beginFunc, player, true);
+                player.unbind('stateChange', beginFunc, player, true);
+                window.parent.postMessage("tourLoaded", '*');
+                disposePreloader();
+                onVirtualTourLoaded();
+            };
+
+            var settings = new TDV.PlayerSettings();
+            settings.set(TDV.PlayerSettings.CONTAINER, document.getElementById('viewer'));
+            settings.set(TDV.PlayerSettings.SCRIPT_URL, 'script.js?v=1781619726540');
+            settings.set(TDV.PlayerSettings.WEBVR_POLYFILL_URL, 'lib/WebVRPolyfill.js?v=1781619726540');
+            settings.set(TDV.PlayerSettings.HLS_URL, 'lib/Hls.js?v=1781619726540');
+            settings.set(TDV.PlayerSettings.QUERY_STRING_PARAMETERS, 'v=1781619726540');
+            window.tdvplayer = player = TDV.PlayerAPI.create(settings);
+            player.bind('preloadMediaShow', beginFunc, player, true);
+            player.bind('stateChange', beginFunc, player, true);
+            player.bindOnObjectsOf('PanoramaPlayListItem', 'begin', beginFunc, player, true);
+            player.bindOnObject('rootPlayer', 'start', function(e){
+                var queryDict = {};
+                location.search.substr(1).split("&").forEach(function(item) {
+                    var k = item.split("=")[0], v = decodeURIComponent(item.split("=")[1]);
+                    queryDict[k] = v;
+                });
+                var item = undefined;
+                if("media-index" in queryDict){
+                    item = setMediaByIndex(parseInt(queryDict["media-index"]) - 1);
+                } else if("media-name" in queryDict){
+                    item = setMediaByName(queryDict["media-name"]);
+                } else {
+                    item = setMediaByIndex(0);
+                }
+                if(item != undefined && "trigger-overlay-name" in queryDict){
+                    triggerOverlayByName(item, queryDict["trigger-overlay-name"], "trigger-overlay-event" in queryDict ? queryDict["trigger-overlay-event"] : "click");
+                }
+                player.getById('rootPlayer').bind('tourEnded', function(){
+                    onVirtualTourEnded();
+                }, player, true);
+            }, player, false);
+
+            window.addEventListener('message', function (e) {
+                var action = e.data;
+                if (action == 'pauseTour' || action == 'resumeTour') {
+                    this[action].apply(this);
+                }
+            });
+        }
+
+        function pauseTour() {
+            isPaused = true;
+            if(!isInitialized) return;
+            var playLists = player.getByClassName('PlayList');
+            for(var i = 0; i < playLists.length; i++) {
+                var playList = playLists[i];
+                var index = playList.get('selectedIndex');
+                if(index != -1) {
+                    var item = playList.get('items')[index];
+                    var itemPlayer = item.get('player');
+                    if(itemPlayer && itemPlayer.pause) {
+                        playersPlayingTmp.push(itemPlayer);
+                        itemPlayer.pause();
+                    }
+                }
+            }
+            player.getById('pauseGlobalAudios')();
+        }
+
+        function resumeTour() {
+            isPaused = false;
+            if(!isInitialized) return;
+            while(playersPlayingTmp.length) {
+                var viewer = playersPlayingTmp.pop();
+                viewer.play();
+            }
+            player.getById('resumeGlobalAudios')();
+        }
+
+        function onVirtualTourLoaded() {
+            if(isPaused) pauseTour();
+        }
+
+        function onVirtualTourEnded() {}
+
+        function getRootPlayer() {
+            return window.tdvplayer !== undefined ? window.tdvplayer.getById('rootPlayer') : undefined;
+        }
+
+        function setMediaByIndex(index) {
+            var rootPlayer = getRootPlayer();
+            if(rootPlayer !== undefined) return rootPlayer.setMainMediaByIndex(index);
+        }
+
+        function setMediaByName(name) {
+            var rootPlayer = getRootPlayer();
+            if(rootPlayer !== undefined) return rootPlayer.setMainMediaByName(name);
+        }
+
+        function triggerOverlayByName(item, name, eventName) {
+            var rootPlayer = getRootPlayer();
+            if(rootPlayer !== undefined) {
+                item.bind('begin', function(e){
+                    item.unbind('begin', arguments.callee, this);
+                    var overlay = rootPlayer.getPanoramaOverlayByName(item.get('media'), name);
+                    if(overlay) rootPlayer.triggerOverlay(overlay, eventName);
+                }, rootPlayer);
+            }
+        }
+
+        function showPreloader() {
+            var preloadContainer = document.getElementById('preloadContainer');
+            if(preloadContainer) preloadContainer.style.opacity = 1;
+        }
+
+        function disposePreloader() {
+            var preloadContainer = document.getElementById('preloadContainer');
+            if(!preloadContainer) return;
+            var transitionEndName = transitionEndEventName();
+            if(transitionEndName) {
+                preloadContainer.addEventListener(transitionEndName, hide, false);
+                preloadContainer.style.opacity = 0;
+                setTimeout(hide, 500);
+            } else {
+                hide();
+            }
+            function hide() {
+                preloadContainer.style.visibility = 'hidden';
+                preloadContainer.style.display = 'none';
+            }
+            function transitionEndEventName () {
+                var el = document.createElement('div');
+                var transitions = {
+                    'transition':'transitionend',
+                    'OTransition':'otransitionend',
+                    'MozTransition':'transitionend',
+                    'WebkitTransition':'webkitTransitionEnd'
+                };
+                for (var t in transitions) {
+                    if (el.style[t] !== undefined) return transitions[t];
+                }
+                return undefined;
+            }
+        }
+
+        function onLoad() {
+            if (/AppleWebKit/.test(navigator.userAgent) && /Mobile\/\w+/.test(navigator.userAgent)) {
+                var inIFrame = false;
+                try { inIFrame = (window.self !== window.top); } catch (e) { inIFrame = true; }
+                if (!inIFrame) {
+                    var onResize = function(async) {
+                        [0, 250, 1000, 2000].forEach(function(delay) {
+                            setTimeout(function() {
+                                var viewer = document.querySelector('#viewer');
+                                var scale = window.innerWidth / document.documentElement.clientWidth;
+                                var width = document.documentElement.clientWidth;
+                                var height = Math.round(window.innerHeight / scale);
+                                viewer.style.width = width + 'px';
+                                viewer.style.height = height + 'px';
+                                viewer.style.left = Math.round((window.innerWidth - width) * 0.5) + 'px';
+                                viewer.style.top = Math.round((window.innerHeight - height) * 0.5) + 'px';
+                                viewer.style.transform = 'scale(' + scale + ', ' + scale + ')';
+                                window.scrollTo(0,0);
+                            }, delay);
+                        });
+                    };
+                    window.addEventListener('resize', onResize);
+                    onResize();
+                }
+            }
+            if (isOVRWeb()){
+                showPreloader();
+                loadTour();
+                return;
+            }
+            showPreloader();
+            loadTour();
+        }
+
+        function playVideo(video) {
+            function isSafariDesktopV11orGreater() {
+                return /^((?!chrome|android|crios|ipad|iphone).)*safari/i.test(navigator.userAgent) && parseFloat(/Version\/([0-9]+\.[0-9]+)/i.exec(navigator.userAgent)[1]) >= 11;
+            }
+            function detectUserAction() {
+                var onVideoClick = function(e) {
+                    if(video.paused) video.play();
+                    video.muted = false;
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    video.removeEventListener('click', onVideoClick);
+                    video.removeEventListener('touchend', onVideoClick);
+                };
+                video.addEventListener("click", onVideoClick);
+                video.addEventListener("touchend", onVideoClick);
+            }
+            if (isSafariDesktopV11orGreater()) {
+                video.muted = true;
+                video.play();
+            } else {
+                var promise = video.play();
+                if (promise) {
+                    promise.catch(function() {
+                        video.muted = true;
+                        video.play();
+                        detectUserAction();
+                    });
+                } else {
+                    detectUserAction();
+                }
+            }
+        }
+
+        function isOVRWeb(){
+            return window.location.hash.substring(1).split('&').indexOf('ovrweb') > -1;
+        }
+    </script>
+    <link rel="stylesheet" href="fonts.css?v=1781619726540">
+    <style>
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        #viewer {
+            background-color: #FFFFFF; z-index:1; position:absolute;
+            width: 100%; height: 100%; top: 0;
+        }
+        #preloadContainer {
+            z-index:2; position:relative; width:100%; height:100%;
+            transition: opacity 0.5s; -webkit-transition: opacity 0.5s;
+        }
+
+        /* --- TOMBOL KEMBALI KE UTAMA (POJOK KIRI BAWAH) --- */
+        .back-home-btn {
+            position: fixed;
+            left: 24px;
+            bottom: 28px;
+            z-index: 100;
+            background: rgba(20, 30, 45, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 48px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.4);
+            transition: all 0.25s ease;
+            text-decoration: none;
+            user-select: none;
+        }
+        .back-home-btn:hover {
+            background: rgba(30, 40, 58, 0.85);
+            border-color: rgba(255,255,255,0.35);
+            transform: translateY(-2px);
+            box-shadow: 0 16px 30px -6px rgba(0,0,0,0.5);
+        }
+        .back-home-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: white;
+            stroke-width: 2.2;
+        }
+
+        /* --- POP UP KONFIRMASI (TENGAH, DESAIN MENARIK) --- */
+        .confirm-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+        }
+        .confirm-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .confirm-dialog {
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 32px;
+            padding: 32px 28px 24px;
+            max-width: 320px;
+            width: 80%;
+            text-align: center;
+            box-shadow: 0 30px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.5);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            color: #1e2b3c;
+        }
+        .confirm-overlay.active .confirm-dialog {
+            transform: scale(1);
+        }
+        .confirm-icon {
+            background: #f0f4ff;
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 18px;
+            color: #2d4b6e;
+        }
+        .confirm-icon svg {
+            width: 34px; height: 34px;
+            stroke: #2d4b6e;
+            fill: none;
+            stroke-width: 2;
+        }
+        .confirm-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: 0.2px;
+        }
+        .confirm-message {
+            font-size: 15px;
+            color: #4a5568;
+            margin-bottom: 28px;
+            line-height: 1.5;
+        }
+        .confirm-buttons {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+        }
+        .btn {
+            border: none;
+            border-radius: 40px;
+            padding: 12px 24px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            letter-spacing: 0.3px;
+            background: transparent;
+        }
+        .btn-cancel {
+            background: #e9edf2;
+            color: #2d3a4a;
+        }
+        .btn-cancel:hover {
+            background: #dce1e8;
+        }
+        .btn-leave {
+            background: #c44536;
+            color: white;
+            box-shadow: 0 8px 18px rgba(196, 69, 54, 0.3);
+        }
+        .btn-leave:hover {
+            background: #b13b2e;
+        }
+
+        @media (max-width: 480px) {
+            .back-home-btn {
+                left: 16px;
+                bottom: 20px;
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body onload="onLoad()">
+    <!-- Preloader original -->
+    <div id="preloadContainer" style="background-color:rgba(255,255,255,1)">
+        <div style="z-index:4; position:absolute; left:0; top:50%; width:100%; height:10%;">
+            <div style="text-align:left; color:#000;">
+                <div style="text-align:center;">
+                    <span style="letter-spacing:0;color:#777;font-size:1.39vmin;font-family:Arial,Helvetica,sans-serif;">Loading virtual tour. Please wait...</span>
+                </div>
+                <p style="margin:0; line-height:1.02vmin;"><br style="letter-spacing:0;color:#000;font-size:1.02vmin;font-family:Arial,Helvetica,sans-serif;"/></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Viewer 360 -->
+    <div id="viewer"></div>
+
+    <!-- TOMBOL KEMBALI KE UTAMA (KIRI BAWAH) -->
+    <div class="back-home-btn" id="backToHomeBtn" title="Kembali ke halaman utama">
+        <svg viewBox="0 0 24 24">
+            <path d="M9 14l-4-4m0 0l4-4m-4 4h11a4 4 0 010 8h-1" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Kembali</span>
+    </div>
+
+    <!-- POP UP KONFIRMASI (TENGAH) -->
+    <div class="confirm-overlay" id="confirmPopup">
+        <div class="confirm-dialog">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" fill="none"/>
+                    <path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="confirm-title">Tinggalkan Virtual Tour?</div>
+            <div class="confirm-message">Anda akan kembali ke halaman utama. Tur virtual saat ini akan dihentikan.</div>
+            <div class="confirm-buttons">
+                <button class="btn btn-cancel" id="cancelBtn">Lanjut Tur</button>
+                <button class="btn btn-leave" id="leaveBtn">Tinggalkan</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Tunggu DOM siap, lalu pasang event listener
+            function initUI() {
+                const backBtn = document.getElementById('backToHomeBtn');
+                const confirmPopup = document.getElementById('confirmPopup');
+                const cancelBtn = document.getElementById('cancelBtn');
+                const leaveBtn = document.getElementById('leaveBtn');
+
+                if (!backBtn || !confirmPopup) return;
+
+                // Ketika tombol kembali diklik -> tampilkan popup
+                backBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    confirmPopup.classList.add('active');
+                });
+
+                // Tombol batal / lanjut tur
+                cancelBtn.addEventListener('click', function() {
+                    confirmPopup.classList.remove('active');
+                });
+
+                // Klik di luar dialog (overlay) juga menutup
+                confirmPopup.addEventListener('click', function(e) {
+                    if (e.target === confirmPopup) {
+                        confirmPopup.classList.remove('active');
+                    }
+                });
+
+                // Tombol konfirmasi tinggalkan
+                leaveBtn.addEventListener('click', function() {
+                    // Ganti URL sesuai halaman utama Anda.
+                    // Misal: '../' atau '/' atau 'https://ce.ubt.ac.id/'
+                    window.location.href = 'http://localhost:3000/';
+                });
+
+                // Tutup popup dengan tombol Escape (aksesibilitas)
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && confirmPopup.classList.contains('active')) {
+                        confirmPopup.classList.remove('active');
+                    }
+                });
+            }
+
+            // Pastikan elemen sudah tersedia (loadTour dijalankan di onLoad, tapi elemen UI sudah ada di DOM)
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(initUI, 10);
+            } else {
+                window.addEventListener('DOMContentLoaded', initUI);
+            }
+        })();
+    </script>
+</body>
+</html>
