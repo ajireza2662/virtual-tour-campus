@@ -98,7 +98,7 @@ export function BenefitsSection({ onOpenGuide }: BenefitsSectionProps) {
         {/* Copyright */}
         <div className="mt-12 text-center">
           <p className="text-sm font-medium text-[#e8e8e8]/70 md:text-base">
-            &copy; 2026 Aji Reza Mazlan | Teknik Komputer
+            &copy; 2026 Awang Pradana | Aji Reza Mazlan
           </p>
         </div>
       </div>
