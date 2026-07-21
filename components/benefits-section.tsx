@@ -34,7 +34,7 @@ const benefits: { icon: ReactNode; title: string; description: string }[] = [
 
 export function BenefitsSection({ onOpenGuide }: BenefitsSectionProps) {
   // Replace with your actual Google Form URL
-  const GOOGLE_FORM_URL = "https://forms.gle/mB2qNwmXWe1SFGhE6"
+  const GOOGLE_FORM_URL = "https://forms.gle/QGs7YA2vpX2sn4pW8"
 
   const handleFeedbackClick = () => {
     window.open(GOOGLE_FORM_URL, "_blank", "noopener,noreferrer")
