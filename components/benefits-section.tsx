@@ -33,6 +33,13 @@ const benefits: { icon: ReactNode; title: string; description: string }[] = [
 ]
 
 export function BenefitsSection({ onOpenGuide }: BenefitsSectionProps) {
+  // Replace with your actual Google Form URL
+  const GOOGLE_FORM_URL = "https://forms.gle/mB2qNwmXWe1SFGhE6"
+
+  const handleFeedbackClick = () => {
+    window.open(GOOGLE_FORM_URL, "_blank", "noopener,noreferrer")
+  }
+
   return (
     <section className="relative overflow-hidden bg-[#1e3270] py-20 lg:py-28">
       {/* Decorative blobs */}
@@ -85,13 +92,22 @@ export function BenefitsSection({ onOpenGuide }: BenefitsSectionProps) {
           ))}
         </div>
 
-        {/* Panduan Pengguna button */}
-        <div className="mt-14 flex justify-center">
+        {/* Buttons container */}
+        <div className="mt-14 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">
+          {/* Panduan Pengguna button */}
           <button
             onClick={onOpenGuide}
-            className="rounded-full border-2 border-[#e8e8e8] bg-transparent px-10 py-3.5 text-base font-bold text-[#e8e8e8] transition-colors hover:bg-[#e8e8e8] hover:text-[#1a2a5e]"
+            className="w-full rounded-full border-2 border-[#e8e8e8] bg-transparent px-10 py-3.5 text-base font-bold text-[#e8e8e8] transition-colors hover:bg-[#e8e8e8] hover:text-[#1a2a5e] sm:w-auto"
           >
             Panduan Pengguna
+          </button>
+
+          {/* Kirimkan Saran Anda button */}
+          <button
+            onClick={handleFeedbackClick}
+            className="w-full rounded-full bg-[#fbbf24] px-10 py-3.5 text-base font-bold text-[#1a2a5e] transition-all hover:scale-105 hover:bg-[#fcd34d] sm:w-auto"
+          >
+            Kirimkan Saran Anda
           </button>
         </div>
 
