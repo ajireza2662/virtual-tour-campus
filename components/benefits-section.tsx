@@ -111,10 +111,13 @@ export function BenefitsSection({ onOpenGuide }: BenefitsSectionProps) {
           </button>
         </div>
 
-        {/* Copyright */}
+        {/* Copyright & Version */}
         <div className="mt-12 text-center">
           <p className="text-sm font-medium text-[#e8e8e8]/70 md:text-base">
             &copy; 2026 Awang Pradana | Aji Reza Mazlan
+          </p>
+          <p className="mt-1 text-xs font-medium text-[#e8e8e8]/50 md:text-sm">
+            v1.0
           </p>
         </div>
       </div>
